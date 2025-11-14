@@ -8,6 +8,7 @@ import {
   TextField,
   CircularProgress,
   Alert,
+  LinearProgress,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 
@@ -17,9 +18,19 @@ export default function ResumeUpload() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleFileChange = (e) => {
     setResume(e.target.files[0]);
+    setSuccess("");
+    setError("");
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 80) return "success"; // green
+    if (score >= 60) return "info";    // blue
+    if (score >= 40) return "warning"; // orange
+    return "error"; // red
   };
 
   const handleSubmit = async (e) => {
@@ -31,26 +42,39 @@ export default function ResumeUpload() {
 
     const formData = new FormData();
     formData.append("resume", resume);
-    if (jobDescription.trim())
-      formData.append("job_description", jobDescription);
+    if (jobDescription.trim()) formData.append("job_description", jobDescription);
 
     try {
       setLoading(true);
       setError("");
       setResult(null);
+      setSuccess("");
 
-      const res = await axios.post(
-        "http://localhost:8000/api/upload",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
+      const res = await axios.post("http://localhost:8000/api/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       setResult(res.data);
+      setSuccess("Resume evaluated successfully!");
     } catch (err) {
       console.error(err);
-      setError("Failed to process the resume. Please try again.");
+
+      // Handle different error types
+      if (err.response) {
+        // Backend returned a response with status code
+        setError(
+          err.response.data?.error ||
+          `Server returned ${err.response.status}. Please check your resume and try again.`
+        );
+      } else if (err.request) {
+        // Request was made but no response received
+        setError(
+          "No response from the server. Please ensure the backend is running and reachable."
+        );
+      } else {
+        // Something else went wrong
+        setError(`Error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -158,6 +182,18 @@ export default function ResumeUpload() {
         </Alert>
       )}
 
+      {/* Success Message */}
+      {success && (
+        <Alert
+          severity="success"
+          sx={{ mt: 3 }}
+          role="status"
+          aria-live="polite"
+        >
+          {success}
+        </Alert>
+      )}
+
       {result && (
         <Paper
           variant="outlined"
@@ -174,28 +210,40 @@ export default function ResumeUpload() {
           <Typography id="results-heading" variant="h6">
             Results
           </Typography>
+          {/* ATS Score with LinearProgress */}
           {typeof result.ats_score === "number" && (
-            <Typography>
-              ATS Score: <strong>{result.ats_score}%</strong>
-            </Typography>
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body1" sx={{ mb: 1 }}>
+                ATS Score: <strong>{result.ats_score}%</strong>
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={result.ats_score}
+                color={getScoreColor(result.ats_score)}
+                sx={{ height: 10, borderRadius: 5 }}
+              />
+            </Box>
           )}
+
+          {/* Other scores */}
           {typeof result.keyword_overlap === "number" && (
-            <Typography>
+            <Typography sx={{ mt: 2 }}>
               Keyword Overlap: <strong>{result.keyword_overlap}%</strong>
             </Typography>
           )}
           {typeof result.semantic_similarity === "number" && (
-            <Typography>
-              Semantic Similarity:{" "}
-              <strong>{result.semantic_similarity}%</strong>
+            <Typography sx={{ mt: 1 }}>
+              Semantic Similarity: <strong>{result.semantic_similarity}%</strong>
             </Typography>
           )}
           {typeof result.match_score === "number" && (
-            <Typography>
+            <Typography sx={{ mt: 1 }}>
               Overall Match Score: <strong>{result.match_score}%</strong>
             </Typography>
           )}
-          <Typography variant="body2" sx={{ mt: 1, color: "#333" }}>
+
+          {/* Feedback text */}
+          <Typography variant="body2" sx={{ mt: 2, color: "#333" }}>
             {result.feedback}
           </Typography>
         </Paper>
