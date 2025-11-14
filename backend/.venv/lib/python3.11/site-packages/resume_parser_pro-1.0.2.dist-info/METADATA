@@ -1,0 +1,55 @@
+Metadata-Version: 2.1
+Name: resume_parser_pro
+Version: 1.0.2
+Summary: A production-grade Python package to parse PDF/DOCX resumes.
+Home-page: https://github.com/Abhinav0905/resume_parser_pro
+Author: Kumar Abhinav
+Author-email: Kumar Abhinav <rushtoabhinavin@gmail.com>
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Requires-Dist: spacy>=3.0.0
+Requires-Dist: python-docx
+Requires-Dist: PyPDF2
+
+# README.md
+
+# Resume Parser Pro
+
+A Python package for parsing resumes and extracting structured information from them.
+
+## Features
+
+- **Contact Information**: Easily extract name, email addresses, and phone numbers.
+- **Work Experience**: Parse job titles, company names, durations, and locations.
+- **Education**: Identify degrees, institutions, and graduation years.
+- **Structured Data Output**: Returns a Python dictionary (or JSON) of parsed data for easy integration.
+
+## Installation
+
+You can install the package using pip:
+
+```bash
+pip install resume_parser_pro
+```
+
+## Usage
+
+from resume_parser_pro import ResumeParser
+
+parser = ResumeParser()
+
+data = parser.parse('path/to/resume.pdf')
+print(data)
+
+### Project Structure
+The project includes the following languages and frameworks:  
+Python 3.8
+
+### Contributing
+Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.  
+
+### License
+This project is licensed under the MIT License - see the LICENSE file for details.

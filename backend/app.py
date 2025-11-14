@@ -1,5 +1,3 @@
-#!/bin/python
-
 """
 Flask backend for the resume parser app.
 
@@ -11,67 +9,111 @@ from flask_cors import CORS
 from resume_parser_pro import ResumeParser
 import os
 import tempfile
-# import requests
-# import json
+import re
+import spacy
 
 app = Flask(__name__)
 CORS(app)
 
+# Load spaCy model for NLP-based similarity and keyword extraction
+try:
+    nlp = spacy.load("en_core_web_sm")
+except Exception as e:
+    print("Warning: could not load spaCy model:", e, flush=True)
+    nlp = None
 
-@app.route("/api/upload", methods=["POST"])
-def upload_resume():
+
+def extract_resume_text(parsed):
     """
-    POST api/upload
-    ------------------
-
-    Takes an uploaded resume file as input and parses through using the resume_parser_pro package.
-    Returns the parsed data from resume along with an ATS score.
+    Build a plain-text representation of the resume from the parsed data.
     """
+    if not isinstance(parsed, dict):
+        return ""
+    parts = []
+    for key in ["summary", "experience", "skills", "education"]:
+        value = parsed.get(key)
+        if isinstance(value, list):
+            parts.append(" ".join(str(v) for v in value))
+        elif isinstance(value, str):
+            parts.append(value)
+    return "\n".join(parts)
 
-    if "resume" not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    
-    file = request.files["resume"]
-    if file.filename == "":
-        return jsonify({"error": "No file selected"}), 400
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        file.save(tmp.name)
-        tmp_path = tmp.name
 
-    try:
-        parser = ResumeParser(tmp_path)
-        data = parser.parse()
-        print("This is the sample data: ", data) # Temporary logging statement
-        ats_score = calculate_ats_score(data)
-        print("This is the ATS score: ", ats_score)
+def extract_keywords_spacy(text):
+    """
+    Use spaCy to pull out meaningful keywords (lemmas of important content words).
+    """
+    if not text or not nlp:
+        return set()
 
-        os.remove(tmp_path)
+    doc = nlp(text)
+    keywords = set()
 
-        return jsonify({"data": data, "ats_score": ats_score}), 200
-    
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
+    for token in doc:
+        if token.is_stop or token.is_punct or token.is_space:
+            continue
+        # Focus on content words
+        if token.pos_ in ("NOUN", "PROPN", "ADJ", "VERB"):
+            lemma = token.lemma_.lower()
+            if len(lemma) > 2:
+                keywords.add(lemma)
+
+    return keywords
+
+
+def calculate_keyword_overlap(resume_text, job_description):
+    """
+    Calculate keyword overlap based on spaCy-extracted content words
+    instead of all tokens. This gives a more meaningful percentage.
+    """
+    if not resume_text or not job_description or not nlp:
+        return 0.0
+
+    resume_keywords = extract_keywords_spacy(resume_text)
+    job_keywords = extract_keywords_spacy(job_description)
+
+    if not job_keywords:
+        return 0.0
+
+    overlap = resume_keywords.intersection(job_keywords)
+    score = (len(overlap) / len(job_keywords)) * 100.0
+    return round(score, 1)
+
+
+def calculate_semantic_similarity(resume_text, job_description):
+    """
+    Use spaCy's document similarity to compute a semantic similarity score
+    between the resume and job description, scaled to 0–100.
+    """
+    if not nlp or not resume_text or not job_description:
+        return None
+    doc_resume = nlp(resume_text)
+    doc_job = nlp(job_description)
+    sim = doc_resume.similarity(doc_job)
+    sim = max(0.0, min(sim, 1.0))
+    score = sim * 100.0
+    return round(score, 1)
 
 
 def calculate_ats_score(data):
     """
-    A brief calculation for ATS score for readability based on which parts
-    were successfully filled out.
-
+    Very simple ATS-style completeness score based on presence of
+    key fields in the parsed resume.
     """
+    if not isinstance(data, dict):
+        return 0.0
+
+    name = data.get("name")
+    email = data.get("email")
+    experience = data.get("experience")
+    skills = data.get("skills")
+    education = data.get("education")
+
     score = 0
 
-    name = data.get("name", "")
-    email = data.get("email", [])
-    experience = data.get("experience", [])
-    skills = data.get("skills", [])
-    education = data.get("education", [])
-
-    if name and name.strip():
+    if name and str(name).strip():
         score += 5
-    if email:
+    if email and str(email).strip():
         score += 5
     if experience:
         score += 40
@@ -79,8 +121,107 @@ def calculate_ats_score(data):
         score += 30
     if education:
         score += 20
-    
-    return score
-    
+
+    return round(float(score), 1)
+
+
+def build_feedback(ats_score, keyword_overlap, semantic_similarity):
+    """
+    Generate human-readable feedback based on the three scores.
+    """
+    messages = []
+
+    if ats_score is not None:
+        if ats_score >= 80:
+            messages.append("Your resume includes most core sections that ATS systems look for.")
+        elif ats_score >= 60:
+            messages.append("Your resume has the main sections, but you could strengthen experience and skills descriptions.")
+        else:
+            messages.append("Your resume may be missing important sections or details for ATS systems.")
+
+    if keyword_overlap is not None:
+        if keyword_overlap >= 70:
+            messages.append("You are using many of the same keywords as the job description.")
+        elif keyword_overlap >= 40:
+            messages.append("You are matching some job keywords, but you could add more relevant skills and responsibilities.")
+        else:
+            messages.append("Consider adding more role-specific keywords from the job posting in your skills and experience sections.")
+
+    if semantic_similarity is not None:
+        if semantic_similarity >= 70:
+            messages.append("Overall, your resume content is semantically close to the job description.")
+        elif semantic_similarity >= 40:
+            messages.append("Your resume is somewhat related to the job, but you can tailor it more to the specific responsibilities.")
+        else:
+            messages.append("Your resume appears to target a different type of role than this job description.")
+
+    if not messages:
+        return "Upload a resume and job description to see detailed feedback."
+
+    return " ".join(messages)
+
+
+@app.route("/api/upload", methods=["POST"])
+def upload_resume():
+    if "resume" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files["resume"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    job_description = request.form.get("job_description", "")
+
+    tmp_path = None
+    try:
+        # Preserve the original extension if possible (helps the parser)
+        _, ext = os.path.splitext(file.filename)
+        ext = ext or ".pdf"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+
+        parser = ResumeParser(tmp_path)
+        parsed_data = parser.parse()
+
+        resume_text = extract_resume_text(parsed_data)
+        ats_score = calculate_ats_score(parsed_data)
+
+        # Debug prints for you in the backend terminal
+        print("This is the sample data: ", parsed_data, flush=True)
+        print("This is the ATS score: ", ats_score, flush=True)
+
+        keyword_overlap = None
+        semantic_similarity = None
+        match_score = None
+
+        if job_description.strip() and resume_text.strip():
+            keyword_overlap = calculate_keyword_overlap(resume_text, job_description)
+            semantic_similarity = calculate_semantic_similarity(resume_text, job_description)
+            if keyword_overlap is not None and semantic_similarity is not None:
+                match_score = round((keyword_overlap + semantic_similarity) / 2.0, 1)
+
+        feedback = build_feedback(ats_score, keyword_overlap, semantic_similarity)
+
+        return jsonify(
+            {
+                "parsed_data": parsed_data,
+                "ats_score": ats_score,
+                "keyword_overlap": keyword_overlap,
+                "semantic_similarity": semantic_similarity,
+                "match_score": match_score,
+                "feedback": feedback,
+            }
+        ), 200
+
+    except Exception as e:
+        print("Error in /api/upload:", e, flush=True)
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
