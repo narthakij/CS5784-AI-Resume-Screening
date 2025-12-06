@@ -80,6 +80,33 @@ export default function ResumeUpload() {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    if (!result) {
+      setError("No feedback available to export.");
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        "http://localhost:8000/api/download_feedback_pdf",
+        result,
+        { responseType: "blob", }
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "resume_feedback.pdf");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } 
+    catch (err) {
+      console.error(err);
+      setError("Failed to download PDF. Please try again.");
+    }
+  };
+
   return (
     <Paper
       elevation={2}
@@ -246,6 +273,15 @@ export default function ResumeUpload() {
           <Typography variant="body2" sx={{ mt: 2, color: "#333" }}>
             {result.feedback}
           </Typography>
+
+          {/* The button for downloading results */}
+          <Button
+            variant="contained"
+            sx={{ mt: 3 }}
+            onClick={handleDownloadPDF}
+          >
+            Download Feedback as PDF
+          </Button>
         </Paper>
       )}
     </Paper>
