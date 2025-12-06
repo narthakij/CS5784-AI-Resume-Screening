@@ -7,6 +7,8 @@ This module is the main Flask app and contains any needed API endpoints for pars
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from resume_parser_pro import ResumeParser
+from resume_parser_pro.reader import ResumeReader as OriginalReader
+import pdfplumber
 import os
 import tempfile
 import re
@@ -21,6 +23,27 @@ try:
 except Exception as e:
     print("Warning: could not load spaCy model:", e, flush=True)
     nlp = None
+
+
+class PdfPlumberReader(OriginalReader):
+    """
+    This class will manually override the original ResumeReader in the 
+    resume_parser_pro package. This is because resume_parser_pro only accepts
+    PDF and DOCX files and cannot take the raw text output of PDFPlumber by
+    itself.
+
+    This class runs PDFPlumber inside the ResumeReader and returns the text
+    to the ResumeParser to extract key fields.
+    """
+    def read_resume_file(self, path: str) -> str:
+        if path.lower().endswith(".pdf"):
+            text = ""
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages:
+                    text += page.extract_text() or ""
+            return text
+        # Fallback in case PDFPlumber doesn't work
+        return super().read_resume_file(path)
 
 
 def extract_resume_text(parsed):
@@ -182,6 +205,7 @@ def upload_resume():
             tmp_path = tmp.name
 
         parser = ResumeParser(tmp_path)
+        parser.reader = PdfPlumberReader(logger=parser.logger) # This manually overrides the parser's reader with PDFPlumberReader
         parsed_data = parser.parse()
 
         resume_text = extract_resume_text(parsed_data)
