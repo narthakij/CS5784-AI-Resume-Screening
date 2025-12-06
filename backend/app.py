@@ -247,5 +247,78 @@ def upload_resume():
             os.remove(tmp_path)
 
 
+@app.route("/api/download_feedback_pdf", methods=["POST"])
+def download_feedback_pdf():
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    import tempfile
+    import textwrap
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Missing resume results"}), 400
+
+    result = data  
+    lines = []
+
+    # Simple function to add header with corresponding result from parsing
+    def add_line(label, key):
+        if key in result and result[key] is not None:
+            lines.append(f"{label}: {result[key]}")
+
+    add_line("ATS Score", "ats_score")
+    add_line("Keyword Overlap", "keyword_overlap")
+    add_line("Semantic Similarity", "semantic_similarity")
+    add_line("Overall Match Score", "match_score")
+
+    lines.append("")
+    lines.append("=== FEEDBACK ===")
+    lines.append("")
+
+    if "feedback" in result and result["feedback"]:
+        for line in result["feedback"].split("\n"):
+            lines.append(line)
+
+    # Handles line wrapping so that the words won't run off the page
+    wrapped_lines = []
+    for line in lines:
+        wrapped = textwrap.wrap(line, width=90)
+        if not wrapped:
+            wrapped_lines.append("")
+        else:
+            wrapped_lines.extend(wrapped)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf_path = tmp.name
+
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    width, height = letter
+    y = height - 72
+
+    c.setFont("Helvetica", 12)
+
+    for line in wrapped_lines:
+        c.drawString(72, y, line)
+        y -= 16
+
+        if y < 72:
+            c.showPage()
+            c.setFont("Helvetica", 12)
+            y = height - 72
+
+    c.save()
+
+    from flask import send_file
+
+    return send_file(
+        pdf_path,
+        as_attachment=True,
+        download_name="resume_report.pdf",
+        mimetype="application/pdf"
+    )
+
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)
