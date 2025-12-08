@@ -1,16 +1,55 @@
-# React + Vite
+# Frontend Directory
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 🚀 Overview
+This is the frontend for the project, built with:
 
-Currently, two official plugins are available:
+- **Vite** – fast development server and build tool  
+- **React.js** – component-based UI library  
+- **JavaScript** – application logic  
+- **Material UI (MUI)** – component styling and design system  
+- **Node.js + npm** – dependency and script management  
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+This document explains how to install dependencies, run the app locally, build for production, and understand the project structure.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 📦 Prerequisites
+Before running the frontend, ensure the following are installed on your system:
 
-## Expanding the ESLint configuration
+- **Node.js (LTS recommended)**  
+- **npm** (comes with Node)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Check if you have them installed:
+```bash
+node -v
+npm -v
+```
+## 📁 Project Setup
+
+### 1. Navigate to the frontend folder
+
+```bash
+cd frontend
+
+cd ats-resume-app
+```
+
+### 2. Install dependencies
+
+- npm install
+
+- npm install @mui/material @emotion/react @emotion/styled
+
+## 🏃‍♂️ Running the Development Server
+
+To start the Vite development server, run:
+
+```bash
+npm run dev
+```
+
+Once running, the app will be accessible at:
+
+```bash
+http://localhost:5173/
+```

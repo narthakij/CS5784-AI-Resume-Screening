@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useMemo } from "react";
 import axios from "axios";
 import {
   Box,
@@ -9,16 +9,80 @@ import {
   CircularProgress,
   Alert,
   LinearProgress,
+  Grid,
+  Chip,
+  Divider,
+  IconButton,
+  Tooltip,
+  Stack,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DownloadIcon from "@mui/icons-material/Download";
+import FileCopyIcon from "@mui/icons-material/FileCopy";
 
-export default function ResumeUpload() {
+function ScorePill({ label, value, size = 72 }) {
+  const normalized = Math.max(0, Math.min(100, Math.round(value)));
+  const getColor = (v) => {
+    if (v >= 80) return "success";
+    if (v >= 60) return "info";
+    if (v >= 40) return "warning";
+    return "error";
+  };
+
+  return (
+    <Paper
+      elevation={1}
+      sx={{
+        width: size + 18,
+        p: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 2,
+      }}
+    >
+      <Box sx={{ position: "relative", display: "inline-flex" }}>
+        <CircularProgress
+          variant="determinate"
+          value={normalized}
+          size={size}
+          color={getColor(normalized)}
+          thickness={5}
+        />
+        <Box
+          sx={{
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            position: "absolute",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {normalized}%
+          </Typography>
+        </Box>
+      </Box>
+      <Typography variant="caption" sx={{ mt: 0.5 }}>
+        {label}
+      </Typography>
+    </Paper>
+  );
+}
+
+export default function ResumeUploadImproved() {
   const [resume, setResume] = useState(null);
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [strengthsFilter, setStrengthsFilter] = useState("");
+  const [weaknessesFilter, setWeaknessesFilter] = useState("");
 
   const handleFileChange = (e) => {
     setResume(e.target.files[0]);
@@ -27,10 +91,10 @@ export default function ResumeUpload() {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return "success"; // green
-    if (score >= 60) return "info";    // blue
-    if (score >= 40) return "warning"; // orange
-    return "error"; // red
+    if (score >= 80) return "success";
+    if (score >= 60) return "info";
+    if (score >= 40) return "warning";
+    return "error";
   };
 
   const handleSubmit = async (e) => {
@@ -59,20 +123,14 @@ export default function ResumeUpload() {
     } catch (err) {
       console.error(err);
 
-      // Handle different error types
       if (err.response) {
-        // Backend returned a response with status code
         setError(
           err.response.data?.error ||
           `Server returned ${err.response.status}. Please check your resume and try again.`
         );
       } else if (err.request) {
-        // Request was made but no response received
-        setError(
-          "No response from the server. Please ensure the backend is running and reachable."
-        );
+        setError("No response from the server. Please ensure the backend is running and reachable.");
       } else {
-        // Something else went wrong
         setError(`Error: ${err.message}`);
       }
     } finally {
@@ -90,7 +148,7 @@ export default function ResumeUpload() {
       const response = await axios.post(
         "http://localhost:8000/api/download_feedback_pdf",
         result,
-        { responseType: "blob", }
+        { responseType: "blob" }
       );
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -100,10 +158,29 @@ export default function ResumeUpload() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } 
-    catch (err) {
+    } catch (err) {
       console.error(err);
       setError("Failed to download PDF. Please try again.");
+    }
+  };
+
+  const strengths = useMemo(() => result?.strengths || [], [result]);
+  const weaknesses = useMemo(() => result?.weaknesses || [], [result]);
+
+  const filteredStrengths = strengths.filter((s) =>
+    s.toLowerCase().includes(strengthsFilter.toLowerCase())
+  );
+  const filteredWeaknesses = weaknesses.filter((w) =>
+    w.toLowerCase().includes(weaknessesFilter.toLowerCase())
+  );
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setSuccess("Copied to clipboard");
+      setTimeout(() => setSuccess(""), 2000);
+    } catch (e) {
+      setError("Failed to copy");
     }
   };
 
@@ -112,207 +189,205 @@ export default function ResumeUpload() {
       elevation={2}
       sx={{
         width: "100%",
-        maxWidth: { xs: "95%", lg: "1000px" },
+        maxWidth: { xs: "95%", lg: "1100px" },
         mx: "auto",
-        p: { xs: 3, sm: 4, md: 5 },
+        p: { xs: 2.5, sm: 3, md: 4 },
         borderRadius: 3,
-        textAlign: "center",
         backgroundColor: "#fff",
       }}
     >
-      <Typography
-        variant="h5"
-        component="h2"
-        sx={{
-          fontWeight: 600,
-          mb: 2,
-          fontSize: { xs: "1.3rem", sm: "1.6rem" },
-        }}
-      >
+      <Typography variant="h5" component="h2" sx={{ fontWeight: 700, mb: 3, textAlign: "center" }}>
         ATS Resume Evaluation
       </Typography>
 
-      <Box
-        component="form"
-        onSubmit={handleSubmit}
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: { xs: 2, sm: 3 },
-          mt: 2,
-        }}
-      >
-        {/* Resume Upload */}
-        <Button
-          variant="outlined"
-          component="label"
-          startIcon={<UploadFileIcon />}
-          sx={{ fontSize: { xs: "0.9rem", sm: "1rem" }, py: 1.2 }}
-          aria-label={
-            resume ? `Uploaded file: ${resume.name}` : "Upload Resume"
-          }
-        >
-          {resume ? resume.name : "Upload Resume"}
-          <input
-            id="resume-upload"
-            type="file"
-            accept=".pdf,.docx,.txt"
-            hidden
-            onChange={handleFileChange}
-          />
-        </Button>
+      <Grid container spacing={3} alignItems="flex-start">
+        {/* Left column: form */}
+        <Grid item xs={12} md={5}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: "grid", gap: 2 }}>
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={<UploadFileIcon />}
+              sx={{ justifyContent: "flex-start", textTransform: "none" }}
+              aria-label={resume ? `Uploaded file: ${resume.name}` : "Upload Resume"}
+            >
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {resume ? resume.name : "Upload Resume (.pdf, .docx, .txt)"}
+                </Typography>
+                <Typography variant="caption">Click to choose a file</Typography>
+              </Box>
+              <input id="resume-upload" type="file" accept=".pdf,.docx,.txt" hidden onChange={handleFileChange} />
+            </Button>
 
-        {/* Job Description Input */}
-        <TextField
-          id="job-description"
-          label="(Optional) Paste Job Description"
-          multiline
-          minRows={4}
-          value={jobDescription}
-          onChange={(e) => setJobDescription(e.target.value)}
-          fullWidth
-        />
+            <TextField
+              id="job-description"
+              label="(Optional) Paste Job Description"
+              multiline
+              minRows={6}
+              value={jobDescription}
+              onChange={(e) => setJobDescription(e.target.value)}
+              fullWidth
+            />
 
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          disabled={loading}
-          sx={{
-            py: 1.3,
-            fontSize: { xs: "0.9rem", sm: "1rem" },
-            fontWeight: 600,
-          }}
-          aria-busy={loading ? "true" : "false"}
-        >
-          {loading ? (
-            <>
-              <CircularProgress size={22} color="inherit" sx={{ mr: 1 }} />
-              Processing...
-            </>
-          ) : (
-            "Evaluate Resume"
-          )}
-        </Button>
-      </Box>
+            <Button type="submit" variant="contained" size="large" disabled={loading} sx={{ py: 1.2, fontWeight: 700 }}>
+              {loading ? (
+                <>
+                  <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> Processing...
+                </>
+              ) : (
+                "Evaluate Resume"
+              )}
+            </Button>
 
-      {/* Feedback / Error */}
-      {error && (
-        <Alert
-          severity="error"
-          sx={{ mt: 3 }}
-          role="alert"
-          aria-live="assertive"
-        >
-          {error}
-        </Alert>
-      )}
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleDownloadPDF} disabled={!result}>
+                Export PDF
+              </Button>
+              <Button variant="outlined" onClick={() => { setResult(null); setError(""); setSuccess(""); setResume(null); }}>
+                Reset
+              </Button>
+            </Stack>
 
-      {/* Success Message */}
-      {success && (
-        <Alert
-          severity="success"
-          sx={{ mt: 3 }}
-          role="status"
-          aria-live="polite"
-        >
-          {success}
-        </Alert>
-      )}
+            {error && (
+              <Alert severity="error" role="alert" aria-live="assertive">
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert severity="success" role="status" aria-live="polite">
+                {success}
+              </Alert>
+            )}
+          </Box>
+        </Grid>
 
-      {result && (
-        <Paper
-          variant="outlined"
-          sx={{
-            mt: 4,
-            p: { xs: 2, sm: 3 },
-            textAlign: "left",
-            borderRadius: 2,
-            backgroundColor: "#fafafa",
-          }}
-          component="section"
-          aria-labelledby="results-heading"
-        >
-          <Typography id="results-heading" variant="h6">
-            Results
-          </Typography>
-          {/* ATS Score with LinearProgress */}
-          {typeof result.ats_score === "number" && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body1" sx={{ mb: 1 }}>
-                ATS Score: <strong>{result.ats_score}%</strong>
+        {/* Right column: results */}
+        <Grid item xs={12} md={7}>
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, backgroundColor: "#fafafa" }} component="section" aria-labelledby="results-heading">
+            <Typography id="results-heading" variant="h6" sx={{ mb: 1 }}>
+              Results
+            </Typography>
+
+            {!result && (
+              <Typography variant="body2" color="text.secondary">
+                No result yet — upload a resume and click Evaluate to see detailed feedback, scores, and suggestions.
               </Typography>
-              <LinearProgress
-                variant="determinate"
-                value={result.ats_score}
-                color={getScoreColor(result.ats_score)}
-                sx={{ height: 10, borderRadius: 5 }}
-              />
-            </Box>
-          )}
-
-          {/* Other scores */}
-          {typeof result.keyword_overlap === "number" && (
-            <Typography sx={{ mt: 2 }}>
-              Keyword Overlap: <strong>{result.keyword_overlap}%</strong>
-            </Typography>
-          )}
-          {typeof result.semantic_similarity === "number" && (
-            <Typography sx={{ mt: 1 }}>
-              Semantic Similarity: <strong>{result.semantic_similarity}%</strong>
-            </Typography>
-          )}
-          {typeof result.match_score === "number" && (
-            <Typography sx={{ mt: 1 }}>
-              Overall Match Score: <strong>{result.match_score}%</strong>
-            </Typography>
-          )}
-
-          {/* Feedback text */}
-          <Typography variant="body2" sx={{ mt: 2, color: "#333" }}>
-            {result.feedback}
-          </Typography>
-
-          {/* Strengths section */}
-          <Typography sx={{ mt: 2, fontWeight: "bold" }}>
-            Strengths:
-          </Typography>
-          <ul style={{ marginTop: "4px" }}>
-            {result.strengths && result.strengths.length > 0 ? (
-              result.strengths.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))
-            ) : (
-              <li>No strengths found.</li>
             )}
-          </ul>
 
-          {/* Missing keywords section */}
-          <Typography sx={{ mt: 2, fontWeight: "bold" }}>
-            Missing Keywords:
-          </Typography>
-          <ul style={{ marginTop: "4px" }}>
-            {result.weaknesses && result.weaknesses.length > 0 ? (
-              result.weaknesses.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))
-            ) : (
-              <li>No weaknesses found.</li>
+            {result && (
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {/* Top score row */}
+                <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                  <ScorePill label="Keyword" value={result.keyword_overlap ?? 0} />
+                  <ScorePill label="Semantic" value={result.semantic_similarity ?? 0} />
+                  <ScorePill label="Match" value={result.match_score ?? 0} />
+                </Box>
+
+                {/* ATS linear with explanation */}
+                {typeof result.ats_score === "number" && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      ATS Score: <strong>{result.ats_score}%</strong>
+                    </Typography>
+                    <LinearProgress
+                      variant="determinate"
+                      value={Math.max(0, Math.min(100, result.ats_score))}
+                      color={getScoreColor(result.ats_score)}
+                      sx={{ height: 12, borderRadius: 2 }}
+                    />
+                  </Box>
+                )}
+
+                {/* Short feedback summary */}
+                {result.feedback && (
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>
+                      Summary
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      {result.feedback}
+                    </Typography>
+                  </Box>
+                )}
+
+                <Divider sx={{ my: 1 }} />
+
+                {/* Strengths + Weaknesses columns */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Strengths
+                      </Typography>
+                    </Box>
+
+                    <TextField
+                      placeholder="Filter strengths..."
+                      size="small"
+                      value={strengthsFilter}
+                      onChange={(e) => setStrengthsFilter(e.target.value)}
+                      sx={{ mt: 1, mb: 1 }}
+                    />
+
+                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                      {filteredStrengths.length > 0 ? (
+                        filteredStrengths.map((s, i) => (
+                          <Chip
+                            key={i}
+                            label={s}
+                            clickable
+                            onClick={() => copyToClipboard(s)}
+                            onDelete={() => copyToClipboard(s)}
+                            deleteIcon={<FileCopyIcon />}
+                            sx={{ m: 0.4 }}
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">No strengths detected</Typography>
+                      )}
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Missing Keywords
+                      </Typography>
+                    </Box>
+
+                    <TextField
+                      placeholder="Filter missing keywords..."
+                      size="small"
+                      value={weaknessesFilter}
+                      onChange={(e) => setWeaknessesFilter(e.target.value)}
+                      sx={{ mt: 1, mb: 1 }}
+                    />
+
+                    <Box sx={{ maxHeight: 200, overflow: "auto", pr: 1 }}>
+                      {filteredWeaknesses.length > 0 ? (
+                        filteredWeaknesses.map((w, i) => (
+                          <Chip key={i} label={w} size="small" sx={{ m: 0.4 }} />
+                        ))
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">No missing keywords detected</Typography>
+                      )}
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                {/* Optional additional insights: formatting, readability */}
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+                  <Button variant="contained" onClick={handleDownloadPDF} startIcon={<DownloadIcon />}>
+                    Download Feedback as PDF
+                  </Button>
+                </Box>
+              </Box>
             )}
-          </ul>
-
-
-          {/* The button for downloading results */}
-          <Button
-            variant="contained"
-            sx={{ mt: 3 }}
-            onClick={handleDownloadPDF}
-          >
-            Download Feedback as PDF
-          </Button>
-        </Paper>
-      )}
+          </Paper>
+        </Grid>
+      </Grid>
     </Paper>
   );
 }
