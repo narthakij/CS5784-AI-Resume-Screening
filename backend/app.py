@@ -5,7 +5,10 @@ This module is the main Flask app and contains any needed API endpoints for pars
 """
 
 from flask import Flask, request, jsonify
+from flask import send_file
 from flask_cors import CORS
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 from resume_parser_pro import ResumeParser
 from resume_parser_pro.reader import ResumeReader as OriginalReader
 import pdfplumber
@@ -13,6 +16,7 @@ import os
 import tempfile
 import re
 import spacy
+import textwrap
 
 app = Flask(__name__)
 CORS(app)
@@ -184,6 +188,26 @@ def build_feedback(ats_score, keyword_overlap, semantic_similarity):
     return " ".join(messages)
 
 
+def extract_strengths_weaknesses(resume_text, job_description):
+    """
+    Compares resume and job description keywords to find 
+    strengths (keyword matches) and weaknesses (missing keywords).
+    """
+    if not resume_text or not job_description:
+        return {"strengths": [], "weaknesses": []}
+
+    resume_keywords = extract_keywords_spacy(resume_text)
+    job_keywords = extract_keywords_spacy(job_description)
+
+    strengths = sorted(list(resume_keywords.intersection(job_keywords)))
+    weaknesses = sorted(list(job_keywords - resume_keywords))
+
+    return {
+        "strengths": strengths,
+        "weaknesses": weaknesses
+    }
+
+
 @app.route("/api/upload", methods=["POST"])
 def upload_resume():
     if "resume" not in request.files:
@@ -218,10 +242,13 @@ def upload_resume():
         keyword_overlap = None
         semantic_similarity = None
         match_score = None
+        strengths_weaknesses = None
 
         if job_description.strip() and resume_text.strip():
             keyword_overlap = calculate_keyword_overlap(resume_text, job_description)
             semantic_similarity = calculate_semantic_similarity(resume_text, job_description)
+            strengths_weaknesses = extract_strengths_weaknesses(resume_text, job_description)
+
             if keyword_overlap is not None and semantic_similarity is not None:
                 match_score = round((keyword_overlap + semantic_similarity) / 2.0, 1)
 
@@ -235,6 +262,8 @@ def upload_resume():
                 "semantic_similarity": semantic_similarity,
                 "match_score": match_score,
                 "feedback": feedback,
+                "strengths": strengths_weaknesses["strengths"],
+                "weaknesses": strengths_weaknesses["weaknesses"]
             }
         ), 200
 
@@ -249,11 +278,6 @@ def upload_resume():
 
 @app.route("/api/download_feedback_pdf", methods=["POST"])
 def download_feedback_pdf():
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter
-    import tempfile
-    import textwrap
-
     data = request.get_json()
 
     if not data:
@@ -279,6 +303,28 @@ def download_feedback_pdf():
     if "feedback" in result and result["feedback"]:
         for line in result["feedback"].split("\n"):
             lines.append(line)
+
+    lines.append("")
+    lines.append("=== STRENGTHS ===")
+    lines.append("")
+
+    strengths = result.get("strengths", [])
+    if strengths:
+        for item in strengths:
+            lines.append(f"• {item}")
+    else:
+        lines.append("No strengths found.")
+    
+    lines.append("")
+    lines.append("=== WEAKNESSES ===")
+    lines.append("")
+
+    weaknesses = result.get("weaknesses", [])
+    if weaknesses:
+        for item in weaknesses:
+            lines.append(f"• {item}")
+    else:
+        lines.append("No missing keywords found.")
 
     # Handles line wrapping so that the words won't run off the page
     wrapped_lines = []
@@ -308,8 +354,6 @@ def download_feedback_pdf():
             y = height - 72
 
     c.save()
-
-    from flask import send_file
 
     return send_file(
         pdf_path,

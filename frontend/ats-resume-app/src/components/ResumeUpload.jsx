@@ -274,6 +274,35 @@ export default function ResumeUpload() {
             {result.feedback}
           </Typography>
 
+          {/* Strengths section */}
+          <Typography sx={{ mt: 2, fontWeight: "bold" }}>
+            Strengths:
+          </Typography>
+          <ul style={{ marginTop: "4px" }}>
+            {result.strengths && result.strengths.length > 0 ? (
+              result.strengths.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))
+            ) : (
+              <li>No strengths found.</li>
+            )}
+          </ul>
+
+          {/* Missing keywords section */}
+          <Typography sx={{ mt: 2, fontWeight: "bold" }}>
+            Missing Keywords:
+          </Typography>
+          <ul style={{ marginTop: "4px" }}>
+            {result.weaknesses && result.weaknesses.length > 0 ? (
+              result.weaknesses.map((item, i) => (
+                <li key={i}>{item}</li>
+              ))
+            ) : (
+              <li>No weaknesses found.</li>
+            )}
+          </ul>
+
+
           {/* The button for downloading results */}
           <Button
             variant="contained"
