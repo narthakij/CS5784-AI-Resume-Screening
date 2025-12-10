@@ -242,7 +242,7 @@ def upload_resume():
         keyword_overlap = None
         semantic_similarity = None
         match_score = None
-        strengths_weaknesses = None
+        strengths_weaknesses = {"strengths": [], "weaknesses": []}
 
         if job_description.strip() and resume_text.strip():
             keyword_overlap = calculate_keyword_overlap(resume_text, job_description)
