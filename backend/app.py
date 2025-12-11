@@ -17,6 +17,7 @@ import tempfile
 import re
 import spacy
 import textwrap
+import subprocess
 
 app = Flask(__name__)
 CORS(app)
@@ -24,9 +25,10 @@ CORS(app)
 # Load spaCy model for NLP-based similarity and keyword extraction
 try:
     nlp = spacy.load("en_core_web_sm")
-except Exception as e:
-    print("Warning: could not load spaCy model:", e, flush=True)
-    nlp = None
+except OSError:
+    print("SpaCy model not found. Downloading...", flush=True)
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
 
 
 class PdfPlumberReader(OriginalReader):
