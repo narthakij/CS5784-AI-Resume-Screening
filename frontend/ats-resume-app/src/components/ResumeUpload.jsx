@@ -114,7 +114,7 @@ export default function ResumeUploadImproved() {
       setResult(null);
       setSuccess("");
 
-      const res = await axios.post("http://localhost:8000/api/upload", formData, {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/upload`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -146,7 +146,7 @@ export default function ResumeUploadImproved() {
 
     try {
       const response = await axios.post(
-        "http://localhost:8000/api/download_feedback_pdf",
+        `${import.meta.env.VITE_API_URL}/api/download_feedback_pdf`,
         result,
         { responseType: "blob" }
       );
